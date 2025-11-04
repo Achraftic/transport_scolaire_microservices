@@ -1,8 +1,9 @@
 package com.transport.auth_service.service;
 
-import com.transport.auth_service.dto.AuthResponse;
+import com.transport.auth_service.dto.LoginResponse;
 import com.transport.auth_service.dto.LoginRequest;
 import com.transport.auth_service.dto.RegisterRequest;
+import com.transport.auth_service.dto.RegisterResponse;
 import com.transport.auth_service.entity.User;
 import com.transport.auth_service.exception.AuthException;
 import com.transport.auth_service.repository.UserRepository;
@@ -28,7 +29,7 @@ public class AuthService {
     @Autowired
     private AuthenticationManager authenticationManager;
 
-    public AuthResponse register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new AuthException("User with email " + request.getEmail() + " already exists", HttpStatus.CONFLICT);
         }
@@ -41,16 +42,14 @@ public class AuthService {
         user.setEnabled(true);
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user);
+        // String token = jwtService.generateToken(user);
 
-        return AuthResponse.builder()
-                .accessToken(token)
-                .username(user.getEmail())
-                .roles(user.getRole().name())
+        return RegisterResponse.builder()
+                .message("User registered successfully")
                 .build();
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
@@ -63,10 +62,11 @@ public class AuthService {
 
         String token = jwtService.generateToken(user);
 
-        return AuthResponse.builder()
+        return LoginResponse.builder()
                 .accessToken(token)
                 .username(user.getEmail())
                 .roles(user.getRole().name())
+                .id(user.getId())
                 .build();
     }
 
