@@ -36,14 +36,27 @@ Ce service gère toute l'authentification et l'enregistrement des utilisateurs.
     La connexion à la base de données est configurée dans `auth-service/src/main/resources/application.yml`. Assurez-vous que votre serveur MySQL local est en cours d'exécution et que vous avez créé le schéma `auth_db`.
 
     ```yaml
+    server:
+        port: 8081
+
+    APP_SECRET: ${APP_SECRET}
+
     spring:
-      datasource:
+    application:
+        name: auth-service
+    datasource:
         url: jdbc:mysql://localhost:3306/auth_db
         username: root
-        password: [VOTRE_MOT_DE_PASSE_MYSQL]
-      jpa:
+        password:
+        driver-class-name: com.mysql.cj.jdbc.Driver
+    jpa:
         hibernate:
-          ddl-auto: update
+        ddl-auto: update
+        show-sql: true
+        properties:
+        hibernate:
+            dialect: org.hibernate.dialect.MySQLDialect
+
     ```
 
 -----
