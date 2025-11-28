@@ -1,187 +1,133 @@
-#  gestion du transport scolaire (Microservice 7 et 8 )
+# Microservices Documentation
 
-Ce document fournit les instructions pour installer et exécuter l'infrastructure centrale du projet de Gestion du Transport Scolaire. Cela inclut deux microservices critiques :
+This document provides detailed documentation for the microservices in the school transport management system.
 
-1.  **Microservice 7 : `auth-service`**
-2.  **Microservice 8 : `api-gateway`**
+## 1. API Gateway
 
-## Aperçu de l'Architecture
+*   **Service Name:** `api-gateway`
+*   **Port / Base URL:** `8080` / `http://localhost:8080`
+*   **Purpose / Responsibility:** The single entry point for all client requests. It is responsible for routing requests to the appropriate downstream microservice, handling authentication by validating JWTs, and passing authenticated user details to the services via HTTP headers.
 
-Ces deux services constituent le point d'entrée et la sécurité pour l'ensemble du système. L'architecture est la suivante :
+### Routing
+The API gateway manages the following routes:
 
-  * La **Passerelle API (MS 8)** est le **seul** service avec lequel l'application cliente (application mobile) doit communiquer. Elle agit comme porte d'entrée et s'exécute sur le port `8080`.
-  * Le **Service d'Authentification (MS 7)** gère les comptes utilisateurs et les jetons de sécurité. Il s'exécute sur le port `8081` et n'est **pas** exposé au monde extérieur.
-  * La Passerelle reçoit tout le trafic entrant (par ex., `/auth/login`) et le route intelligemment vers le service interne approprié (par ex., `auth-service`).
+| Path Prefix         | Downstream Service |
+| ------------------- | ------------------ |
+| `/auth/**`          | `auth-service`     |
+| `/buses/**`         | `bus-service`      |
+| `/students/**`      | `student-service`  |
+| `/locations/**`     | `location-service` |
+| `/notifications/**` | `notification-service` |
+| `/routes/**`        | `planning-service` |
+| `/groups/**`        | `group-service`    |
 
------
+### Authentication / Authorization
+**General Header Requirement:** For all authenticated API calls, a JSON Web Token (JWT) must be provided in the `Authorization` header in the format `Bearer <token>`.
 
-## 1\. Microservice 7 : Service d'Authentification (`auth-service`)
+The gateway uses a custom `JwtAuthentication` filter for all routes except `/auth/**`.
 
-Ce service gère toute l'authentification et l'enregistrement des utilisateurs.
+*   It expects a JWT in the `Authorization` header (`Bearer <token>`).
+*   If the token is valid, it forwards the request to the downstream service.
+*   If the token is missing or invalid, it returns a `401 Unauthorized` error.
 
-  * **Projet :** `auth-service`
+### Headers Passed to Downstream Services
+Upon successful authentication, the gateway adds the following headers to the request before forwarding it:
 
-  * **Port :** `8081`
+*   `X-Auth-User`: The username (email) of the authenticated user.
+*   `X-Auth-Roles`: A comma-separated string of roles associated with the user (e.g., "ADMIN,USER").
+*   **Note:** `X-Auth-UserId` is not currently passed.
 
-  * **Objectif :**
+### Error Handling
+*   `401 Unauthorized`: If the JWT is missing, invalid, or expired.
+*   `404 Not Found`: If a route does not match any of the configured predicates.
+*   `503 Service Unavailable`: If a downstream service is unavailable.
 
-      * Fournir les points de terminaison (endpoints) pour l'enregistrement (`/register`) et la connexion (`/login`) des utilisateurs.
-      * Valider les identifiants des utilisateurs.
-      * Générer des Jetons Web JSON (JWT) lors d'une connexion réussie.
-      * Gérer les rôles et les permissions des utilisateurs.
+---
 
-  * **Technologie :** Spring Boot, Spring Security, Spring Data JPA, JWT, MySQL.
+## 2. Inter-Service Communication
 
-  * **Configuration :**
-    La connexion à la base de données est configurée dans `auth-service/src/main/resources/application.yml`. Assurez-vous que votre serveur MySQL local est en cours d'exécution et que vous avez créé le schéma `auth_db`.
+Microservices communicate with each other in two primary ways:
 
-    ```yaml
-    server:
-        port: 8081
+### Synchronous Communication (Direct API Calls)
+For immediate, request-response interactions, services can communicate directly with each other using RESTful API calls. 
 
-    APP_SECRET: ${APP_SECRET}
+*   **Service Discovery:** In a production environment, a service discovery mechanism (like Eureka or Consul) should be used to resolve the network locations of service instances. For local development, services can be accessed via their configured `localhost` URLs (e.g., `http://localhost:8083/students`).
+*   **Authentication:** When one service calls another, it must propagate the original user's identity and permissions. This is typically done by forwarding the JWT from the initial request.
 
-    spring:
-    application:
-        name: auth-service
-    datasource:
-        url: jdbc:mysql://localhost:3306/auth_db
-        username: root
-        password:
-        driver-class-name: com.mysql.cj.jdbc.Driver
-    jpa:
-        hibernate:
-        ddl-auto: update
-        show-sql: true
-        properties:
-        hibernate:
-            dialect: org.hibernate.dialect.MySQLDialect
+### Asynchronous Communication (Events/Messages)
+For processes that do not require an immediate response, services communicate asynchronously using a message broker (e.g., RabbitMQ, Kafka).
 
-    ```
+*   **Example:** The `group-service` might publish a `groups.created` event. The `planning-service` would then subscribe to this event to recalculate routes without the two services being tightly coupled.
 
------
+### Reading User Information
+Downstream services can read authenticated user information from the HTTP headers forwarded by the API Gateway. As noted in the gateway documentation, these headers include:
 
-## 2\. Microservice 8 : Passerelle API (`api-gateway`)
+*   `X-Auth-User`: The username (email).
+*   `X-Auth-Roles`: The user roles.
+*   `X-Auth-UserId`: The user id.
 
-Ce service est le point d'entrée unique pour toutes les requêtes du client.
+Services can use this information to perform authorization checks or to associate data with a specific user.
 
-  * **Projet :** `api-gateway`
+---
 
-  * **Port :** `8080` (Port exposé publiquement)
+## 3. Authentication Service
 
-  * **Objectif :**
+*   **Service Name:** `auth-service`
+*   **Port / Base URL:** `8087` / `http://localhost:8087`
+*   **Purpose / Responsibility:** Handles user registration and authentication, and issues JWT access tokens.
 
-      * Fournir une API unique et unifiée pour le client.
-      * Router les requêtes entrantes vers le bon microservice (par ex., `auth-service`, `bus-service`, etc.).
-      * Agir comme un point de contrôle de sécurité (validera les JWT à l'avenir).
+### Endpoints
 
-  * **Technologie :** Spring Cloud Gateway (Réactif, utilise Netty).
-
-  * **Configuration :**
-    Les règles de routage sont définies dans `api-gateway/src/main/resources/application.yml`. Ce fichier indique à la passerelle où envoyer le trafic.
-
-    ```yaml
-    server:
-      port: 8080
-
-    spring:
-      application:
-        name: api-gateway
-      cloud:
-        gateway:
-          server:
-            webflux:
-              routes:
-                
-                # Route vers le Service d'Authentification (MS 7)
-                - id: auth-service
-                  uri: http://localhost:8081
-                  predicates:
-                    - Path=/auth/**
-                
-                # Route vers le Service des Bus (MS 1)
-                - id: bus-service
-                  uri: http://localhost:8082
-                  predicates:
-                    - Path=/buses/**
-                
-                # ... autres routes (élèves, localisation, etc.)
-    ```
-
------
-
-## Prérequis
-
-Avant de commencer, assurez-vous d'avoir installé les éléments suivants :
-
-  * Java JDK 17 (ou 21)
-  * Apache Maven
-  * Un serveur MySQL en cours d'exécution
-  * Un client API (comme Postman)
-
------
-
-## Comment Exécuter
-
-Vous devez démarrer les services dans le bon ordre.
-
-1.  **Démarrer MySQL :** Assurez-vous que votre serveur MySQL est lancé.
-2.  **Créer la base de données :** Créez manuellement le schéma dans MySQL : `CREATE DATABASE auth_db;`
-3.  **Lancer le Service d'Authentification (MS 7) :**
-      * Ouvrez un terminal dans le dossier racine de `auth-service`.
-      * Exécutez `mvn spring-boot:run`
-      * Attendez de voir qu'il a démarré sur le port `8081`.
-4.  **Lancer la Passerelle API (MS 8) :**
-      * Ouvrez un *nouveau* terminal dans le dossier racine de `api-gateway`.
-      * Exécutez `mvn spring-boot:run`
-      * Attendez de voir qu'il a démarré sur le port `8080` (il mentionnera **Netty**).
-
-Le système est maintenant en cours d'exécution. Toutes les requêtes doivent être envoyées à `http://localhost:8080`.
-
------
-
-## Comment Tester
-
-Utilisez Postman pour envoyer des requêtes **uniquement à la Passerelle (port 8080)**.
-
-### Test 1 : Enregistrer un nouvel utilisateur
-
-  * **Méthode :** `POST`
-
-  * **URL :** `http://localhost:8080/auth/register`
-
-  * **Corps (Body) :** (raw, JSON)
-
+#### Register a New User
+*   **Endpoint:** `POST /auth/register`
+*   **Description:** Creates a new user account.
+*   **Authentication:** None. This is a public endpoint.
+*   **Input (Request Body):**
     ```json
     {
-        "email": "achraf@gmail.com",
+        "email": "user@example.com",
         "password": "password123",
-        "role": "ADMIN"
+        "fullName": "John Doe",
+        "role": "USER"
     }
     ```
-
-### Test 2 : Se Connecter
-
-  * **Méthode :** `POST`
-
-  * **URL :** `http://localhost:8080/auth/login`
-
-  * **Corps (Body) :** (raw, JSON)
-
+    *   `email` (string, required, valid email format)
+    *   `password` (string, required, min 6 characters)
+    *   `fullName` (string, required)
+    *   `role` (string, required, e.g., "USER", "ADMIN", "DRIVER")
+*   **Output (Response Body):
     ```json
     {
-        "email": "achraf@gmail.com",
+        "message": "User registered successfully"
+    }
+    ```
+*   **Error Handling:**
+    *   `400 Bad Request`: If validation fails (e.g., invalid email, short password) or if the email is already in use.
+
+#### Log In a User
+*   **Endpoint:** `POST /auth/login`
+*   **Description:** Authenticates a user and returns a JWT access token.
+*   **Authentication:** None. This is a public endpoint.
+*   **Input (Request Body):**
+    ```json
+    {
+        "email": "user@example.com",
         "password": "password123"
     }
     ```
+    *   `email` (string, required)
+    *   `password` (string, required)
+*   **Output (Response Body):**
+    ```json
+    {
+        "accessToken": "ey...[jwt]...",
+        "username": "user@example.com",
+        "roles": "USER",
+        "id": "c1f8a8b8-4d32-4d23-9c1c-3e6f2b4b4e1e"
+    }
+    ```
+*   **Error Handling:**
+    *   `401 Unauthorized`: If the credentials are invalid.
 
-  * **Résultat :** Vous recevrez une réponse JSON contenant le `access token`, `userId`, `email`, et `role`. Ce jeton doit être sauvegardé par le client et envoyé avec toutes les futures requêtes.
-  ``` json
-  {
-    "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQURNSU4iLCJzdWIiOiJ0aWNhY2hyYWZAZ21haWwuY29tIiwiaWF0IjoxNzYyMjg5Mzc5LCJleHAiOjE3NjIzMjUzNzl9.rI8Xqwc5JDzTiS5BDvTR0XjB_aeZYxwMgm4oOKae1J8",
-    "username": "achraf@gmail.com",
-    "roles": "ADMIN",
-     "id": "6149cde7-5d83-45c7-8bdb-b03c386803cc"
-    
-}  
-  ```
+---
+

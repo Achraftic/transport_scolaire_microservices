@@ -1,0 +1,88 @@
+# Documentation for Authentication Service (MS 7)
+
+## Overview
+The Authentication Service (MS 7) is responsible for managing user authentication, role-based access control, and securing API interactions within the "Gestion intelligente du transport scolaire" application. It handles user registration, login, and token generation for secure communication.
+
+## Responsibilities
+*   Authenticating users (parents, drivers, administrators).
+*   Managing user roles and permissions.
+*   Securing APIs and data through JWT (JSON Web Tokens).
+
+## API Endpoints
+
+### 1. User Registration
+*   **Endpoint:** `POST /auth/register`
+*   **Description:** Registers a new user in the system.
+*   **Request Body (JSON):**
+    ```json
+    {
+        "firstName": "string",
+        "lastName": "string",
+        "email": "string",
+        "password": "string",
+        "role": "PARENT" | "DRIVER" | "ADMIN"
+    }
+    ```
+*   **Response (JSON - Example):** Returns an authentication token upon successful registration.
+    ```json
+    {
+        "token": "jwt_token_string",
+        "message": "User registered successfully"
+    }
+    ```
+
+### 2. User Login
+*   **Endpoint:** `POST /auth/login`
+*   **Description:** Authenticates an existing user and provides an authentication token.
+*   **Request Body (JSON):**
+    ```json
+    {
+        "email": "string",
+        "password": "string"
+    }
+    ```
+*   **Response (JSON - Example):** Returns an authentication token upon successful login.
+    ```json
+    {
+        "token": "jwt_token_string",
+        "message": "User logged in successfully"
+    }
+    ```
+
+### 3. Get User Roles (Requires Authentication)
+*   **Endpoint:** `GET /auth/roles/{user_id}`
+*   **Description:** Retrieves the roles assigned to a specific user.
+*   **Path Variable:** `user_id` (Long) - The ID of the user.
+*   **Response (JSON - Example):**
+    ```json
+    {
+        "userId": 1,
+        "roles": ["PARENT"]
+    }
+    ```
+
+## Usage Examples (using cURL)
+
+### Register a new user
+```bash
+curl -X POST http://localhost:8081/auth/register \
+-H "Content-Type: application/json" \
+-d '{
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "password": "password123",
+    "role": "PARENT"
+}'
+```
+
+### Login an existing user
+```bash
+curl -X POST http://localhost:8081/auth/login \
+-H "Content-Type: application/json" \
+-d '{
+    "email": "john.doe@example.com",
+    "password": "password123"
+}'
+```
+*Note: Replace `localhost:8081` with the actual address and port of your authentication service.*

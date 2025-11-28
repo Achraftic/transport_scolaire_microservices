@@ -7,38 +7,61 @@ spring:
 
   cloud:
     gateway:
-      routes:
-        - id: auth-service
-          uri: http://auth-service:8087
-          predicates:
-            - Path=/auth/**
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: http://localhost:8087
+              predicates:
+                - Path=/auth/**
 
-        - id: bus-service
-          uri: http://localhost:8082
-          predicates:
-            - Path=/buses/**
+            - id: bus-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/buses/**
+              filters:
+                - JwtAuthentication
 
-        - id: student-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/students/**
+            - id: student-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/students/**
+              filters:
+                - JwtAuthentication
 
-        - id: location-service
-          uri: http://localhost:8085
-          predicates:
-            - Path=/locations/**
+            - id: location-service
+              uri: http://localhost:8085
+              predicates:
+                - Path=/locations/**
+              filters:
+                - JwtAuthentication
 
-        - id: notification-service
-          uri: http://localhost:8086
-          predicates:
-            - Path=/notifications/**
+            - id: notification-service
+              uri: http://localhost:8086
+              predicates:
+                - Path=/notifications/**
+              filters:
+                - JwtAuthentication
 
-        - id: planning-service
-          uri: http://localhost:8088
-          predicates:
-            - Path=/routes/**
+            - id: planning-service
+              uri: http://localhost:8088
+              predicates:
+                - Path=/routes/**
+              filters:
+                - JwtAuthentication
 
-        - id: group-service
-          uri: http://localhost:8084
-          predicates:
-            - Path=/groups/**
+            - id: group-service
+              uri: http://localhost:8084
+              predicates:
+                - Path=/groups/**
+              filters:
+                - JwtAuthentication
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8087/oauth2/jwks
+
+jwt:
+  secret: uXceU/Fkk7ofRCjf2ZZTat1yjB590H0hAcbFHcSwUO0=
